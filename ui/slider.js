@@ -25,6 +25,15 @@
 	}
 }(function( $ ) {
 
+function _isIos(){
+	var isIos = false;
+	if (typeof navigator != 'undefined' && navigator.userAgent){
+		var userAgent = navigator.userAgent;
+		isIos = /ipod|iphone|ipad/i.test(userAgent);
+	}
+	return isIos;
+}
+
 return $.widget( "ui.slider", $.ui.mouse, {
 	version: "1.11.1",
 	widgetEventPrefix: "slide",
@@ -50,6 +59,12 @@ return $.widget( "ui.slider", $.ui.mouse, {
 	// number of pages in a slider
 	// (how many times can you page up/down to go through the whole range)
 	numPages: 5,
+
+	/**
+	 * 2016-11-08
+	 * Simple detection of ipod, iphone, ipad devices.
+	 */
+	_isIos:_isIos(),
 
 	_create: function() {
 		this._keySliding = false;
@@ -209,9 +224,18 @@ return $.widget( "ui.slider", $.ui.mouse, {
 
 		this._handleIndex = index;
 
-		closestHandle
-			.addClass( "ui-state-active" )
-			.focus();
+		closestHandle.addClass( "ui-state-active" );
+
+		/**
+		 * 2016-11-08
+		 * Safari on iOS10+ has a bug: if `element.focus()` invoked on item that sits lower than device height (initially rendered off-screen inside iframe)
+		 * then host page will scroll to incorrect position (visual effect is that page scrolls down, hiding slider).
+		 *
+		 * To work around this we will only set focus on slider handle if we are *not* on iOS device.
+		 */
+		if (!this._isIos){
+			closestHandle.focus();
+		}
 
 		offset = closestHandle.offset();
 		mouseOverHandle = !$( event.target ).parents().addBack().is( ".ui-slider-handle" );
