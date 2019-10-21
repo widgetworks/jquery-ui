@@ -25,6 +25,18 @@
 	}
 }(function( $ ) {
 
+/*
+2019-10-21 CFH - CR201901-a11y - don't focus on tooltip icon in iOS (because of that old focus bug)
+*/
+function _isIos(){
+	var isIos = false;
+	if (typeof navigator != 'undefined' && navigator.userAgent){
+		var userAgent = navigator.userAgent;
+		isIos = /ipod|iphone|ipad/i.test(userAgent);
+	}
+	return isIos;
+}
+
 return $.widget( "ui.tooltip", {
 	version: "1.11.1",
 	options: {
@@ -78,9 +90,20 @@ return $.widget( "ui.tooltip", {
 		}
 	},
 
+	/**
+	 * 2016-11-08
+	 * Simple detection of ipod, iphone, ipad devices.
+	 */
+	_isIos:_isIos(),
+
 	_create: function() {
 		this._on({
 			mouseover: "open",
+			/*
+			2019-10-21 CFH - CR201901-a11y - allow mouseup to trigger tooltip (for android accessibility support, which only
+			raises mousedown, mouseup, click events - doesn't trigger touch events for focus)
+			*/
+			mouseup: "open",
 			focusin: "open"
 		});
 
@@ -171,9 +194,25 @@ return $.widget( "ui.tooltip", {
 		}
 
 		target.data( "ui-tooltip-open", true );
+		
+		/*
+		2019-10-18 CFH - CR201901-a11y - Android TalkBack focus fix
+		Android doesn't set focus on the tooltip trigger when double-tapping
+		to activate element (when TalkBack accessibility is enabled).
+		
+		TalkBack only sends mousedown, mouseup, and click events (doesn't set focus)
+		so tooltip doesn't close when focus is lost to other elements (like sliders).
+		
+		This fix forces focus to the tooltip element (when not on iOS, because
+		of focus bug) so we then know when focus is lost to other elements and the
+		tooltip will close.
+		*/
+		if ( event && event.type === "mouseup" && !this._isIos ) {
+			target.focus();
+		}
 
 		// kill parent tooltips, custom or native, for hover
-		if ( event && event.type === "mouseover" ) {
+		if ( event && (event.type === "mouseover" || event.type === "mouseup") ) {
 			target.parents().each(function() {
 				var parent = $( this ),
 					blurEvent;
@@ -333,12 +372,19 @@ return $.widget( "ui.tooltip", {
 			};
 		}
 
-		if ( !event || event.type === "mouseover" ) {
-			events.mouseleave = "close";
-		}
-		if ( !event || event.type === "focusin" ) {
-			events.focusout = "close";
-		}
+		// if ( !event || event.type === "mouseover" ) {
+		// 	events.mouseleave = "close";
+		// }
+		// if ( !event || event.type === "focusin" ) {
+		// 	events.focusout = "close";
+		// }
+		
+		/*
+		2019-10-18 CFH - CR201901-a11y - always add mouseleave, focusout close listeners
+		*/
+		events.mouseleave = "close";
+		events.focusout = "close";
+		
 		this._on( true, target, events );
 	},
 
@@ -363,6 +409,12 @@ return $.widget( "ui.tooltip", {
 		}
 
 		this._removeDescribedBy( target );
+		
+		/*
+		2019-10-18 CFH - CR201901-a11y - hide live "log" elements so iOS voiceover doesn't speak it at the end of the document
+		(as long as all tooltips have been closed - that's as good as we can get at the moment).
+		*/
+		this.liveRegion.children().hide();
 
 		this.hiding = true;
 		tooltip.stop( true );
