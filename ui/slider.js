@@ -48,6 +48,9 @@ return $.widget( "ui.slider", $.ui.mouse, {
 		step: 1,
 		value: 0,
 		values: null,
+		
+		// 2019-11-06 CFH - indicate if sliders participate in tab ordering
+		tabToSlider: true,
 
 		// callbacks
 		change: null,
@@ -98,7 +101,8 @@ return $.widget( "ui.slider", $.ui.mouse, {
 		var i, handleCount,
 			options = this.options,
 			existingHandles = this.element.find( ".ui-slider-handle" ).addClass( "ui-state-default ui-corner-all" ),
-			handle = "<span class='ui-slider-handle ui-state-default ui-corner-all' tabindex='0'></span>",
+			tabIndex = options.tabToSlider ? '0' : '-1',	// 2019-11-06 CFH
+			handle = "<span class='ui-slider-handle ui-state-default ui-corner-all' tabindex='"+tabIndex+"'></span>",
 			handles = [];
 
 		handleCount = ( options.values && options.values.length ) || 1;
