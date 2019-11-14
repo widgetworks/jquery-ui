@@ -101,8 +101,13 @@ return $.widget( "ui.slider", $.ui.mouse, {
 		var i, handleCount,
 			options = this.options,
 			existingHandles = this.element.find( ".ui-slider-handle" ).addClass( "ui-state-default ui-corner-all" ),
+			
+			// aria-hidden with tabindex="-1" seems to be valid and ok:
+			// https://act-rules.github.io/rules/6cfa84
 			tabIndex = options.tabToSlider ? '0' : '-1',	// 2019-11-06 CFH
-			handle = "<span class='ui-slider-handle ui-state-default ui-corner-all' tabindex='"+tabIndex+"'></span>",
+			ariaHiddenAttr = options.tabToSlider ? '' : "aria-hidden='true'",	// 2019-11-14 CFH
+			
+			handle = "<span class='ui-slider-handle ui-state-default ui-corner-all' " + ariaHiddenAttr + " tabindex='"+tabIndex+"'></span>",
 			handles = [];
 
 		handleCount = ( options.values && options.values.length ) || 1;

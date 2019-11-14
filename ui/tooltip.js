@@ -40,6 +40,12 @@ function _isIos(){
 return $.widget( "ui.tooltip", {
 	version: "1.11.1",
 	options: {
+		/*
+		2019-11-14 CFH
+		Allow aria attributes to be disabled and handle accessibility outside the jquery-ui tooltip library.
+		*/
+		ariaEnabled: true,
+		
 		content: function() {
 			// support: IE<9, Opera in jQuery <1.7
 			// .text() can't accept undefined, so coerce to a string
@@ -65,28 +71,44 @@ return $.widget( "ui.tooltip", {
 	},
 
 	_addDescribedBy: function( elem, id ) {
-		var describedby = (elem.attr( "aria-describedby" ) || "").split( /\s+/ );
-		describedby.push( id );
-		elem
-			.data( "ui-tooltip-id", id )
-			.attr( "aria-describedby", $.trim( describedby.join( " " ) ) );
+		elem.data( "ui-tooltip-id", id );
+		
+		/*
+		2019-11-14
+		Add an extra data attribute so clicking on the tooltip can find
+		this trigger and we can close the tooltip.
+		*/
+		elem.attr("data-ww-tooltip-id", id);
+		
+		// 2019-11-14 CFH: conditional aria handling
+		if (this.options.ariaEnabled) {
+			var describedby = (elem.attr("aria-describedby") || "").split(/\s+/);
+			describedby.push(id);
+			elem.attr("aria-describedby", $.trim(describedby.join(" ")));
+		}
 	},
 
 	_removeDescribedBy: function( elem ) {
-		var id = elem.data( "ui-tooltip-id" ),
-			describedby = (elem.attr( "aria-describedby" ) || "").split( /\s+/ ),
-			index = $.inArray( id, describedby );
-
-		if ( index !== -1 ) {
-			describedby.splice( index, 1 );
-		}
-
+		var id = elem.data( "ui-tooltip-id" );
 		elem.removeData( "ui-tooltip-id" );
-		describedby = $.trim( describedby.join( " " ) );
-		if ( describedby ) {
-			elem.attr( "aria-describedby", describedby );
-		} else {
-			elem.removeAttr( "aria-describedby" );
+		
+		elem.removeAttr("data-ww-tooltip-id");
+		
+		// 2019-11-14 CFH: conditional aria handling
+		if (this.options.ariaEnabled) {
+			var describedby = (elem.attr( "aria-describedby" ) || "").split( /\s+/ ),
+				index = $.inArray( id, describedby );
+	
+			if ( index !== -1 ) {
+				describedby.splice( index, 1 );
+			}
+	
+			describedby = $.trim( describedby.join( " " ) );
+			if ( describedby ) {
+				elem.attr( "aria-describedby", describedby );
+			} else {
+				elem.removeAttr( "aria-describedby" );
+			}
 		}
 	},
 
@@ -116,15 +138,20 @@ return $.widget( "ui.tooltip", {
 			this._disable();
 		}
 
-		// Append the aria-live region so tooltips announce correctly
-		this.liveRegion = $( "<div>" )
-			.attr({
-				role: "log",
-				"aria-live": "assertive",
-				"aria-relevant": "additions"
-			})
-			.addClass( "ui-helper-hidden-accessible" )
-			.appendTo( this.document[ 0 ].body );
+		// 2019-11-14 CFH: conditional aria handling
+		if (this.options.ariaEnabled){
+			// Append the aria-live region so tooltips announce correctly
+			this.liveRegion = $( "<div>" )
+				.attr({
+					role: "log",
+					"aria-live": "assertive",
+					"aria-relevant": "additions"
+				})
+				.addClass( "ui-helper-hidden-accessible" )
+				.appendTo( this.document[ 0 ].body );
+		} else {
+			this.liveRegion = $({});
+		}
 	},
 
 	_setOption: function( key, value ) {
@@ -303,18 +330,21 @@ return $.widget( "ui.tooltip", {
 		tooltip = this._tooltip( target );
 		this._addDescribedBy( target, tooltip.attr( "id" ) );
 		tooltip.find( ".ui-tooltip-content" ).html( content );
-
-		// Support: Voiceover on OS X, JAWS on IE <= 9
-		// JAWS announces deletions even when aria-relevant="additions"
-		// Voiceover will sometimes re-read the entire log region's contents from the beginning
-		this.liveRegion.children().hide();
-		if ( content.clone ) {
-			a11yContent = content.clone();
-			a11yContent.removeAttr( "id" ).find( "[id]" ).removeAttr( "id" );
-		} else {
-			a11yContent = content;
+		
+		// 2019-11-14 CFH: conditional aria handling
+		if (this.options.ariaEnabled){
+			// Support: Voiceover on OS X, JAWS on IE <= 9
+			// JAWS announces deletions even when aria-relevant="additions"
+			// Voiceover will sometimes re-read the entire log region's contents from the beginning
+			this.liveRegion.children().hide();
+			if ( content.clone ) {
+				a11yContent = content.clone();
+				a11yContent.removeAttr( "id" ).find( "[id]" ).removeAttr( "id" );
+			} else {
+				a11yContent = content;
+			}
+			$( "<div>" ).html( a11yContent ).appendTo( this.liveRegion );
 		}
-		$( "<div>" ).html( a11yContent ).appendTo( this.liveRegion );
 
 		function position( event ) {
 			positionOption.of = event;
@@ -408,13 +438,16 @@ return $.widget( "ui.tooltip", {
 			target.attr( "title", target.data( "ui-tooltip-title" ) );
 		}
 
-		this._removeDescribedBy( target );
+		this._removeDescribedBy(target);
 		
-		/*
-		2019-10-18 CFH - CR201901-a11y - hide live "log" elements so iOS voiceover doesn't speak it at the end of the document
-		(as long as all tooltips have been closed - that's as good as we can get at the moment).
-		*/
-		this.liveRegion.children().hide();
+		// 2019-11-14 CFH: conditional aria handling
+		if (this.options.ariaEnabled) {
+			/*
+			2019-10-18 CFH - CR201901-a11y - hide live "log" elements so iOS voiceover doesn't speak it at the end of the document
+			(as long as all tooltips have been closed - that's as good as we can get at the moment).
+			*/
+			this.liveRegion.children().hide();
+		}
 
 		this.hiding = true;
 		tooltip.stop( true );
@@ -453,7 +486,6 @@ return $.widget( "ui.tooltip", {
 				.addClass( "ui-tooltip ui-widget ui-corner-all ui-widget-content " +
 					( this.options.tooltipClass || "" ) ),
 			id = tooltip.uniqueId().attr( "id" );
-
 		$( "<div>" )
 			.addClass( "ui-tooltip-content" )
 			.appendTo( tooltip );
