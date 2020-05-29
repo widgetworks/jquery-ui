@@ -45,7 +45,7 @@ return $.widget( "ui.tooltip", {
 		Allow aria attributes to be disabled and handle accessibility outside the jquery-ui tooltip library.
 		*/
 		ariaEnabled: true,
-		
+
 		content: function() {
 			// support: IE<9, Opera in jQuery <1.7
 			// .text() can't accept undefined, so coerce to a string
@@ -72,14 +72,14 @@ return $.widget( "ui.tooltip", {
 
 	_addDescribedBy: function( elem, id ) {
 		elem.data( "ui-tooltip-id", id );
-		
+
 		/*
 		2019-11-14
 		Add an extra data attribute so clicking on the tooltip can find
 		this trigger and we can close the tooltip.
 		*/
 		elem.attr("data-ww-tooltip-id", id);
-		
+
 		// 2019-11-14 CFH: conditional aria handling
 		if (this.options.ariaEnabled) {
 			var describedby = (elem.attr("aria-describedby") || "").split(/\s+/);
@@ -91,18 +91,18 @@ return $.widget( "ui.tooltip", {
 	_removeDescribedBy: function( elem ) {
 		var id = elem.data( "ui-tooltip-id" );
 		elem.removeData( "ui-tooltip-id" );
-		
+
 		elem.removeAttr("data-ww-tooltip-id");
-		
+
 		// 2019-11-14 CFH: conditional aria handling
 		if (this.options.ariaEnabled) {
 			var describedby = (elem.attr( "aria-describedby" ) || "").split( /\s+/ ),
 				index = $.inArray( id, describedby );
-	
+
 			if ( index !== -1 ) {
 				describedby.splice( index, 1 );
 			}
-	
+
 			describedby = $.trim( describedby.join( " " ) );
 			if ( describedby ) {
 				elem.attr( "aria-describedby", describedby );
@@ -121,13 +121,18 @@ return $.widget( "ui.tooltip", {
 	_create: function() {
 		this._on({
 			mouseover: "open",
+			focusin: "open",
+
 			/*
 			2019-10-21 CFH - CR201901-a11y - allow mouseup to trigger tooltip (for android accessibility support, which only
 			raises mousedown, mouseup, click events - doesn't trigger touch events for focus)
 			*/
 			mouseup: "open",
-			focusin: "open"
+			blur: "clearFocus"
 		});
+
+		// 2020-05-30 - ignore our synthetic focus event to avoid strange behaviour
+		this.wwIgnoreOpen = false;
 
 		// IDs of generated tooltips, needed for destroy
 		this.tooltips = {};
@@ -204,6 +209,12 @@ return $.widget( "ui.tooltip", {
 		});
 	},
 
+	// ww event
+	clearFocus: function(event){
+		this.hadFocusInEvent = false;
+	},
+	// end wiwo event
+
 	open: function( event ) {
 		var that = this,
 			target = $( event ? event.target : this.element )
@@ -211,8 +222,27 @@ return $.widget( "ui.tooltip", {
 				// but always pointing at the same event target
 				.closest( this.options.items );
 
+		if (this.wwIgnoreOpen){
+			return;
+		}
+		if (event && event.type === "focusin"){
+			this.hadFocusInEvent = true;
+		}
+		const hasTooltip = target.data( "ui-tooltip-id" );
+		const isMouseup = event && event.type === "mouseup";
+		if (hasTooltip && isMouseup) {
+			if (this.hadFocusInEvent){
+				this.hadFocusInEvent = false;
+				return;
+			} else {
+				this.hadFocusInEvent = false;
+				this.close(event);
+				return;
+			}
+		}
+
 		// No element to show a tooltip for or the tooltip is already open
-		if ( !target.length || target.data( "ui-tooltip-id" ) ) {
+		if ( !target.length || hasTooltip ) {
 			return;
 		}
 
@@ -221,21 +251,24 @@ return $.widget( "ui.tooltip", {
 		}
 
 		target.data( "ui-tooltip-open", true );
-		
+
 		/*
 		2019-10-18 CFH - CR201901-a11y - Android TalkBack focus fix
 		Android doesn't set focus on the tooltip trigger when double-tapping
 		to activate element (when TalkBack accessibility is enabled).
-		
+
 		TalkBack only sends mousedown, mouseup, and click events (doesn't set focus)
 		so tooltip doesn't close when focus is lost to other elements (like sliders).
-		
+
 		This fix forces focus to the tooltip element (when not on iOS, because
 		of focus bug) so we then know when focus is lost to other elements and the
 		tooltip will close.
 		*/
 		if ( event && event.type === "mouseup" && !this._isIos ) {
+			// Set a flag to avoid running all this behaviour again when focus is triggered.
+			this.wwIgnoreOpen = true;
 			target.focus();
+			this.wwIgnoreOpen = false;
 		}
 
 		// kill parent tooltips, custom or native, for hover
@@ -330,7 +363,7 @@ return $.widget( "ui.tooltip", {
 		tooltip = this._tooltip( target );
 		this._addDescribedBy( target, tooltip.attr( "id" ) );
 		tooltip.find( ".ui-tooltip-content" ).html( content );
-		
+
 		// 2019-11-14 CFH: conditional aria handling
 		if (this.options.ariaEnabled){
 			// Support: Voiceover on OS X, JAWS on IE <= 9
@@ -408,13 +441,13 @@ return $.widget( "ui.tooltip", {
 		// if ( !event || event.type === "focusin" ) {
 		// 	events.focusout = "close";
 		// }
-		
+
 		/*
 		2019-10-18 CFH - CR201901-a11y - always add mouseleave, focusout close listeners
 		*/
 		events.mouseleave = "close";
 		events.focusout = "close";
-		
+
 		this._on( true, target, events );
 	},
 
@@ -439,7 +472,7 @@ return $.widget( "ui.tooltip", {
 		}
 
 		this._removeDescribedBy(target);
-		
+
 		// 2019-11-14 CFH: conditional aria handling
 		if (this.options.ariaEnabled) {
 			/*
@@ -482,7 +515,9 @@ return $.widget( "ui.tooltip", {
 
 	_tooltip: function( element ) {
 		var tooltip = $( "<div>" )
-				.attr( "role", "tooltip" )
+				// .attr( "role", "tooltip" )
+				.attr( "aria-hidden", "true" )
+				.attr( "tabindex", "-1" )
 				.addClass( "ui-tooltip ui-widget ui-corner-all ui-widget-content " +
 					( this.options.tooltipClass || "" ) ),
 			id = tooltip.uniqueId().attr( "id" );
