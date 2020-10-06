@@ -228,8 +228,8 @@ return $.widget( "ui.tooltip", {
 		if (event && event.type === "focusin"){
 			this.hadFocusInEvent = true;
 		}
-		const hasTooltip = target.data( "ui-tooltip-id" );
-		const isMouseup = event && event.type === "mouseup";
+		var hasTooltip = target.data( "ui-tooltip-id" );
+		var isMouseup = event && event.type === "mouseup";
 		if (hasTooltip && isMouseup) {
 			if (this.hadFocusInEvent){
 				this.hadFocusInEvent = false;
