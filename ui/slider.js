@@ -34,6 +34,14 @@ function _isIos(){
 	return isIos;
 }
 
+function _isTouch(event){
+	var isTouch = false;
+	if (window.Touch){
+		isTouch = event instanceof window.Touch;
+	}
+	return isTouch;
+}
+
 return $.widget( "ui.slider", $.ui.mouse, {
 	version: "1.11.1",
 	widgetEventPrefix: "slide",
@@ -48,9 +56,11 @@ return $.widget( "ui.slider", $.ui.mouse, {
 		step: 1,
 		value: 0,
 		values: null,
-		
+
 		// 2019-11-06 CFH - indicate if sliders participate in tab ordering
 		tabToSlider: true,
+		// 2021-03-16 CFH - ignore touch events on the slider track
+		ignoreTrackTouch: true,
 
 		// callbacks
 		change: null,
@@ -101,12 +111,12 @@ return $.widget( "ui.slider", $.ui.mouse, {
 		var i, handleCount,
 			options = this.options,
 			existingHandles = this.element.find( ".ui-slider-handle" ).addClass( "ui-state-default ui-corner-all" ),
-			
+
 			// aria-hidden with tabindex="-1" seems to be valid and ok:
 			// https://act-rules.github.io/rules/6cfa84
 			tabIndex = options.tabToSlider ? '0' : '-1',	// 2019-11-06 CFH
 			ariaHiddenAttr = options.tabToSlider ? '' : "aria-hidden='true'",	// 2019-11-14 CFH
-			
+
 			handle = "<span class='ui-slider-handle ui-state-default ui-corner-all' " + ariaHiddenAttr + " tabindex='"+tabIndex+"'></span>",
 			handles = [];
 
@@ -203,6 +213,19 @@ return $.widget( "ui.slider", $.ui.mouse, {
 
 		if ( o.disabled ) {
 			return false;
+		}
+
+		/*
+		2021-03-16 Ignore touch events on the slider track
+		Only respond to touch events on the slider handle itself.
+		Avoids accidentally changing slider value when scrolling the page on mobile.
+		*/
+		var clickOnHandle = $( event.target ).parents().addBack().is( ".ui-slider-handle" );
+		var isTouchEvent = event._touchPunch || _isTouch(event);
+		if (!clickOnHandle && isTouchEvent && this.options.ignoreTrackTouch){
+			return false;
+		// } else {
+		// 	console.log(`TOUCH OK`);
 		}
 
 		this.elementSize = {
